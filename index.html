@@ -23,6 +23,31 @@
             width: 100%;
         }
 
+        /* Left Reference Panel */
+        .left-panel {
+            width: 0; /* Hidden by default */
+            background: #fffbeb; /* Light yellow background for reference doc */
+            border-right: 1px solid #e5e7eb;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            transition: width 0.3s ease;
+            z-index: 40;
+            opacity: 0;
+        }
+
+        .left-panel.active {
+            width: 320px;
+            opacity: 1;
+            box-shadow: 4px 0 15px rgba(0,0,0,0.05);
+        }
+
+        .left-panel-content {
+            padding: 1.5rem;
+            min-width: 300px; /* Prevent text wrap chaos during transition */
+        }
+
+        /* Center Doc Area */
         .doc-area {
             flex: 1;
             overflow-y: auto;
@@ -30,6 +55,7 @@
             scroll-behavior: smooth;
         }
 
+        /* Right Sidebar */
         .sidebar-area {
             width: 350px;
             background: white;
@@ -78,6 +104,9 @@
         .btn-primary { background-color: #2563eb; color: white; }
         .btn-primary:hover { background-color: #1d4ed8; }
 
+        .btn-warning { background-color: #d97706; color: white; }
+        .btn-warning:hover { background-color: #b45309; }
+
         .btn-success { background-color: #10b981; color: white; }
         .btn-success:hover { background-color: #059669; }
 
@@ -120,6 +149,40 @@
             text-transform: uppercase;
             border-bottom: 2px solid #000;
             padding-bottom: 0.5rem;
+        }
+
+        /* Reference Content Styling */
+        .ref-card {
+            background: white;
+            border: 1px solid #fcd34d;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+            font-size: 0.85rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .ref-title {
+            font-weight: bold;
+            color: #92400e;
+            border-bottom: 1px dashed #fcd34d;
+            padding-bottom: 0.5rem;
+            margin-bottom: 0.5rem;
+            font-size: 1rem;
+        }
+        .ref-item {
+            margin-bottom: 0.5rem;
+            display: flex;
+            flex-direction: column;
+        }
+        .ref-label {
+            color: #78350f;
+            font-weight: 600;
+            font-size: 0.75rem;
+        }
+        .ref-value {
+            font-family: 'Roboto Mono', monospace;
+            color: #111827;
+            word-break: break-all;
         }
 
         /* Table Styles */
@@ -343,7 +406,8 @@
 
         @media (max-width: 768px) {
             .main-layout { flex-direction: column; }
-            .sidebar-area { width: 100%; height: 40vh; border-left: none; border-top: 1px solid #e5e7eb; }
+            .sidebar-area { width: 100%; height: 35vh; border-left: none; border-top: 1px solid #e5e7eb; }
+            .left-panel.active { width: 100%; height: 35vh; position: fixed; bottom: 0; left:0; z-index:100; border-top: 2px solid #fcd34d; }
             body { padding-top: 110px; }
             .control-panel { height: auto; padding: 10px; flex-wrap: wrap; justify-content: center; gap: 10px; }
         }
@@ -351,7 +415,7 @@
         /* Print adjustments */
         @media print {
             body { padding: 0; height: auto; overflow: visible; }
-            .control-panel, .sidebar-area { display: none; }
+            .control-panel, .sidebar-area, .left-panel { display: none; }
             .main-layout { display: block; height: auto; }
             .doc-area { overflow: visible; padding: 0; }
             .doc-container { box-shadow: none; border: none; margin: 0; page-break-after: always; }
@@ -365,12 +429,15 @@
 
     <!-- Header Control Panel -->
     <div class="control-panel">
-        <div class="font-bold text-xl text-gray-800">外贸单证练习系统</div>
-        <div class="flex gap-2">
+        <div class="font-bold text-xl text-gray-800 hidden md:block">外贸单证练习系统</div>
+        <div class="flex gap-2 flex-wrap justify-center">
+            <button onclick="toggleLeftPanel()" id="leftPanelBtn" class="btn btn-warning">
+                <span>📜 显示练习要求</span>
+            </button>
+            <div class="h-6 w-px bg-gray-300 mx-1 hidden md:block"></div>
             <button onclick="toggleTranslationMode()" id="transBtn" class="btn btn-toggle">
                 <span>👁️ 中文翻译</span>
             </button>
-            <div class="h-6 w-px bg-gray-300 mx-1"></div>
             <button onclick="togglePracticeMode()" id="practiceBtn" class="btn btn-primary">
                 <span>🧩 开启分类练习</span>
             </button>
@@ -386,7 +453,98 @@
     <!-- Main Layout -->
     <div class="main-layout">
         
-        <!-- Left: Documents Area -->
+        <!-- LEFT: Reference Panel -->
+        <div class="left-panel" id="leftPanel">
+            <div class="left-panel-content">
+                <h3 class="font-bold text-lg mb-4 text-gray-800">汇票练习要求 (Requirements)</h3>
+                
+                <div class="ref-card">
+                    <div class="ref-title">练习 1 (Practice 1)</div>
+                    <div class="ref-item">
+                        <span class="ref-label">ISSUING BANK</span>
+                        <span class="ref-value">BANK OF CHINA, SINGAPORE</span>
+                    </div>
+                    <div class="ref-item">
+                        <span class="ref-label">L/C NO.</span>
+                        <span class="ref-value">136A-523</span>
+                    </div>
+                    <div class="ref-item">
+                        <span class="ref-label">PLACE AND DATE</span>
+                        <span class="ref-value">SINGAPORE APRIL 5TH, 2020</span>
+                    </div>
+                    <div class="ref-item">
+                        <span class="ref-label">APPLICANT</span>
+                        <span class="ref-value">OVERSEAS TRADE COMPANY, SINGAPORE</span>
+                    </div>
+                    <div class="ref-item">
+                        <span class="ref-label">BENEFICIARY</span>
+                        <span class="ref-value">ZHEJIANG TEXTILE IMPORT AND EXPORT CORPORATION</span>
+                    </div>
+                     <div class="ref-item">
+                        <span class="ref-label">ADVISING BANK</span>
+                        <span class="ref-value">BANK OF CHINA, ZHEJIANG BRANCH</span>
+                    </div>
+                     <div class="ref-item">
+                        <span class="ref-label">AMOUNT</span>
+                        <span class="ref-value">USD 10000.00</span>
+                    </div>
+                    <div class="ref-item">
+                        <span class="ref-label">DRAWN ON</span>
+                        <span class="ref-value">US (BANK OF CHINA, SINGAPORE)</span>
+                    </div>
+                    <div class="ref-item">
+                        <span class="ref-label">TERMS</span>
+                        <span class="ref-value">30 DAYS AFTER SIGHT FOR 93% OF INVOICE VALUE (USD 9300.00)</span>
+                    </div>
+                    <div class="ref-item">
+                        <span class="ref-label">TRADE TERMS</span>
+                        <span class="ref-value">CFR NINGBO</span>
+                    </div>
+                    <div class="ref-item">
+                        <span class="ref-label">DRAFT NO / DATE</span>
+                        <span class="ref-value">335673 / APRIL 20TH, 2020</span>
+                    </div>
+                </div>
+
+                <div class="ref-card">
+                    <div class="ref-title">练习 2 (Practice 2)</div>
+                     <div class="ref-item">
+                        <span class="ref-label">ISSUING BANK</span>
+                        <span class="ref-value">THE BANK OF TOKYO, LTD., NAGOYA OFFICE</span>
+                    </div>
+                    <div class="ref-item">
+                        <span class="ref-label">L/C NO. / DATE</span>
+                        <span class="ref-value">123A-456 / OCT. 6, 2024</span>
+                    </div>
+                    <div class="ref-item">
+                        <span class="ref-label">BENEFICIARY</span>
+                        <span class="ref-value">ZHEJIANG KINGTEX TRADING CO., LTD.</span>
+                    </div>
+                    <div class="ref-item">
+                        <span class="ref-label">DRAWN ON</span>
+                        <span class="ref-value">THE BANK OF TOKYO, LTD., NEW YORK AGENCY</span>
+                    </div>
+                    <div class="ref-item">
+                        <span class="ref-label">TERMS</span>
+                        <span class="ref-value">AT SIGHT FOR FULL INVOICE COST</span>
+                    </div>
+                    <div class="ref-item">
+                        <span class="ref-label">TRADE TERMS</span>
+                        <span class="ref-value">CIF KOBE</span>
+                    </div>
+                    <div class="ref-item">
+                        <span class="ref-label">AMOUNT</span>
+                        <span class="ref-value">USD 66500.00 (7000x4.60 + 7000x4.90)</span>
+                    </div>
+                     <div class="ref-item">
+                        <span class="ref-label">DRAFT NO / DATE</span>
+                        <span class="ref-value">HZ66517 / OCT. 16, 2024</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- CENTER: Documents Area -->
         <div class="doc-area" id="docArea">
             
             <!-- DOCUMENT 1: COMMERCIAL INVOICE -->
@@ -784,7 +942,9 @@
         const checkBtn = document.getElementById('checkBtn');
         const resetBtn = document.getElementById('resetBtn');
         const transBtn = document.getElementById('transBtn');
+        const leftPanelBtn = document.getElementById('leftPanelBtn');
         const sidebar = document.getElementById('sidebar');
+        const leftPanel = document.getElementById('leftPanel');
         const sidebarContent = document.getElementById('sidebarContent');
         const categoryLabel = document.getElementById('categoryLabel');
         
@@ -801,6 +961,12 @@
                 el.setAttribute('data-answer', text);
             }
         });
+
+        function toggleLeftPanel() {
+            leftPanel.classList.toggle('active');
+            const isActive = leftPanel.classList.contains('active');
+            leftPanelBtn.querySelector('span').innerText = isActive ? "❎ 关闭练习要求" : "📜 显示练习要求";
+        }
 
         function toggleTranslationMode() {
             document.body.classList.toggle('translations-active');

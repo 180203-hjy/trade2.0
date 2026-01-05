@@ -1,0 +1,989 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>外贸单证交互翻译与练习</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=Roboto+Mono:wght@400;500&display=swap');
+
+        body {
+            font-family: 'Noto Sans SC', sans-serif;
+            background-color: #f3f4f6;
+            padding-top: 80px; /* Space for fixed header */
+            height: 100vh;
+            overflow-y: hidden; /* Main scroll handled by containers */
+        }
+
+        /* Layout Structure */
+        .main-layout {
+            display: flex;
+            height: calc(100vh - 80px); /* Fill remaining height */
+            width: 100%;
+        }
+
+        .doc-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            scroll-behavior: smooth;
+        }
+
+        .sidebar-area {
+            width: 350px;
+            background: white;
+            border-left: 1px solid #e5e7eb;
+            display: flex;
+            flex-direction: column;
+            box-shadow: -4px 0 15px rgba(0,0,0,0.05);
+            z-index: 50;
+            transition: transform 0.3s ease;
+        }
+
+        .sidebar-area.hidden-panel {
+            display: none;
+        }
+
+        /* Control Panel */
+        .control-panel {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 80px;
+            background: white;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 0 2rem;
+            z-index: 1000;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .btn {
+            padding: 0.5rem 1rem;
+            border-radius: 0.375rem;
+            font-weight: 500;
+            transition: all 0.2s;
+            cursor: pointer;
+            border: 1px solid transparent;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            white-space: nowrap;
+        }
+
+        .btn-primary { background-color: #2563eb; color: white; }
+        .btn-primary:hover { background-color: #1d4ed8; }
+
+        .btn-success { background-color: #10b981; color: white; }
+        .btn-success:hover { background-color: #059669; }
+
+        .btn-outline { background-color: white; border-color: #d1d5db; color: #374151; }
+        .btn-outline:hover { background-color: #f3f4f6; }
+        
+        .btn-toggle { background-color: #e5e7eb; color: #6b7280; }
+        .btn-toggle.active { background-color: #8b5cf6; color: white; border-color: #7c3aed; }
+
+        .doc-container {
+            background: white;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            margin-bottom: 2rem;
+            padding: 2rem;
+            max-width: 900px;
+            margin-left: auto;
+            margin-right: auto;
+            border: 1px solid #e5e7eb;
+            position: relative; /* For labeling */
+        }
+
+        /* Category Label on Document */
+        .doc-tag {
+            position: absolute;
+            top: 0;
+            right: 0;
+            background: #e5e7eb;
+            color: #6b7280;
+            font-size: 0.7rem;
+            padding: 2px 8px;
+            border-bottom-left-radius: 4px;
+            font-weight: bold;
+        }
+
+        .doc-title {
+            text-align: center;
+            font-size: 1.5rem;
+            font-weight: bold;
+            margin-bottom: 1.5rem;
+            text-transform: uppercase;
+            border-bottom: 2px solid #000;
+            padding-bottom: 0.5rem;
+        }
+
+        /* Table Styles */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+            margin-bottom: 1rem;
+            table-layout: fixed; 
+        }
+
+        th, td {
+            border: 1px solid #000;
+            padding: 8px;
+            vertical-align: top;
+            word-wrap: break-word;
+        }
+
+        .label {
+            font-size: 0.75rem;
+            color: #666;
+            margin-bottom: 2px;
+            display: block;
+            font-weight: bold;
+            user-select: none;
+        }
+
+        /* Interactive Text Styles */
+        .translatable {
+            color: #1d4ed8; /* Blue-700 */
+            font-weight: 500;
+            position: relative;
+            text-decoration: underline;
+            text-decoration-style: dotted;
+            text-decoration-color: #93c5fd;
+            transition: all 0.2s;
+            border-radius: 4px;
+            padding: 1px 2px;
+            display: inline-block;
+        }
+        
+        .translatable.block-edit {
+             display: block;
+        }
+
+        /* Translation Tooltip */
+        body.translations-active .translatable {
+            cursor: help;
+        }
+        body.translations-active .translatable:hover {
+            background-color: #eff6ff;
+            color: #1e40af;
+        }
+
+        .translatable::after {
+            content: attr(data-cn);
+            visibility: hidden;
+            opacity: 0;
+            width: max-content;
+            max-width: 300px;
+            background-color: #1f2937;
+            color: #fff;
+            text-align: left;
+            border-radius: 6px;
+            padding: 8px 12px;
+            position: absolute;
+            z-index: 50;
+            bottom: 125%;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 0.85rem;
+            font-weight: normal;
+            line-height: 1.4;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            transition: opacity 0.2s, visibility 0.2s;
+            pointer-events: none;
+            white-space: pre-wrap;
+        }
+
+        .translatable::before {
+            content: "";
+            visibility: hidden;
+            opacity: 0;
+            position: absolute;
+            bottom: 115%;
+            left: 50%;
+            margin-left: -5px;
+            border-width: 5px;
+            border-style: solid;
+            border-color: #1f2937 transparent transparent transparent;
+            transition: opacity 0.2s, visibility 0.2s;
+        }
+
+        body.translations-active .translatable:hover::after,
+        body.translations-active .translatable:hover::before {
+            visibility: visible;
+            opacity: 1;
+        }
+
+        /* CLOZE MODE STYLES */
+        .cloze-slot {
+            background-color: #f0f9ff;
+            border: 2px dashed #60a5fa;
+            color: #2563eb;
+            padding: 2px 6px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            display: inline-block;
+            min-width: 80px;
+            text-align: center;
+            font-size: 0.85rem;
+            transition: all 0.2s;
+        }
+        
+        .cloze-slot:hover {
+            background-color: #dbeafe;
+            border-color: #2563eb;
+        }
+
+        .cloze-slot.active {
+            background-color: #2563eb;
+            color: white;
+            border-style: solid;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.3);
+        }
+
+        .cloze-slot.filled {
+            border-style: solid;
+            background-color: #eff6ff;
+            color: #1e40af;
+        }
+
+        /* Sidebar Styles */
+        .sidebar-header {
+            padding: 1rem;
+            background-color: #f9fafb;
+            border-bottom: 1px solid #e5e7eb;
+            color: #374151;
+        }
+        
+        .sidebar-content {
+            padding: 1rem;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        .option-card {
+            background: white;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.85rem;
+            line-height: 1.5;
+            word-break: break-word;
+            position: relative;
+        }
+
+        .option-card:hover {
+            border-color: #2563eb;
+            background-color: #eff6ff;
+        }
+
+        .option-card.used {
+            background-color: #f3f4f6;
+            color: #9ca3af;
+            border-color: #e5e7eb;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+        
+        .option-card.used::after {
+            content: "✓ 已填";
+            position: absolute;
+            top: 50%;
+            right: 10px;
+            transform: translateY(-50%);
+            font-weight: bold;
+            color: #9ca3af;
+        }
+
+        .empty-state {
+            text-align: center;
+            color: #9ca3af;
+            margin-top: 50px;
+            padding: 0 20px;
+        }
+        
+        .category-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            background-color: #e0e7ff;
+            color: #4338ca;
+            margin-top: 4px;
+        }
+
+        /* Validation Styles */
+        .cloze-slot.correct {
+            border: 2px solid #10b981 !important;
+            background-color: #ecfdf5 !important;
+            color: #047857;
+        }
+
+        .cloze-slot.incorrect {
+            border: 2px solid #ef4444 !important;
+            background-color: #fef2f2 !important;
+            color: #b91c1c;
+        }
+
+        .section-header {
+            background-color: #e5e7eb;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        @media (max-width: 768px) {
+            .main-layout { flex-direction: column; }
+            .sidebar-area { width: 100%; height: 40vh; border-left: none; border-top: 1px solid #e5e7eb; }
+            body { padding-top: 110px; }
+            .control-panel { height: auto; padding: 10px; flex-wrap: wrap; justify-content: center; gap: 10px; }
+        }
+
+        /* Print adjustments */
+        @media print {
+            body { padding: 0; height: auto; overflow: visible; }
+            .control-panel, .sidebar-area { display: none; }
+            .main-layout { display: block; height: auto; }
+            .doc-area { overflow: visible; padding: 0; }
+            .doc-container { box-shadow: none; border: none; margin: 0; page-break-after: always; }
+            .translatable { text-decoration: none; color: black; border: none !important; background: none !important; }
+            .translatable::after, .translatable::before { display: none; }
+            .doc-tag { display: none; }
+        }
+    </style>
+</head>
+<body class="">
+
+    <!-- Header Control Panel -->
+    <div class="control-panel">
+        <div class="font-bold text-xl text-gray-800">外贸单证练习系统</div>
+        <div class="flex gap-2">
+            <button onclick="toggleTranslationMode()" id="transBtn" class="btn btn-toggle">
+                <span>👁️ 中文翻译</span>
+            </button>
+            <div class="h-6 w-px bg-gray-300 mx-1"></div>
+            <button onclick="togglePracticeMode()" id="practiceBtn" class="btn btn-primary">
+                <span>🧩 开启分类练习</span>
+            </button>
+            <button onclick="checkAnswers()" id="checkBtn" class="btn btn-success hidden">
+                <span>✅ 提交检查</span>
+            </button>
+            <button onclick="resetPractice()" id="resetBtn" class="btn btn-outline hidden">
+                <span>↩️ 退出练习</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Layout -->
+    <div class="main-layout">
+        
+        <!-- Left: Documents Area -->
+        <div class="doc-area" id="docArea">
+            
+            <!-- DOCUMENT 1: COMMERCIAL INVOICE -->
+            <div class="doc-container" data-category="商业发票 (Invoice)">
+                <div class="doc-tag">INVOICE</div>
+                <div class="doc-title">COMMERCIAL INVOICE</div>
+                <table>
+                    <tr>
+                        <td colspan="2" width="50%">
+                            <span class="label">ISSUER</span>
+                            <span class="translatable block-edit" data-cn="浙江嘉兴文三服装有限公司&#10;中国嘉兴南湖区南富润路120号">ZHEJIANG JIAXING WENSANAGARMENT CO., LTD.<br>NO. 120 SOUTH FURUN ROAD, NANHU DISTRICT, JIAXING, CHINA</span>
+                        </td>
+                        <td colspan="2" width="50%">
+                            <div class="flex justify-between border-b border-black pb-1 mb-1">
+                                <div class="w-1/2">
+                                    <span class="label">No.</span>
+                                    <span class="translatable" data-cn="ABC220116">ABC220116</span>
+                                </div>
+                                <div class="w-1/2">
+                                    <span class="label">DATE</span>
+                                    <span class="translatable" data-cn="2020年1月16日">JAN. 16th, 2020</span>
+                                </div>
+                            </div>
+                             <div class="flex justify-between border-b border-black pb-1 mb-1">
+                                <div class="w-1/2">
+                                    <span class="label">S/C No.</span>
+                                    <span class="translatable" data-cn="11JW1106">11JW1106</span>
+                                </div>
+                                <div class="w-1/2">
+                                     <span class="label">L/C No.</span>
+                                    <span class="translatable" data-cn="T-117641">T-117641</span>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td colspan="2">
+                            <span class="label">TO</span>
+                            <span class="translatable block-edit" data-cn="POWER PLAY 公司&#10;美国加利福尼亚州洛杉矶东33街137号2楼，邮编90011">POWER PLAY INC.<br>2ND FLOOR, NO. 137E 33RD STREET,<br>LOS ANGELES, CA, 90011 U.S.A.</span>
+                        </td>
+                        <td colspan="2">
+                            <span class="label">TRANSPORTATION</span>
+                            <span class="translatable block-edit" data-cn="从上海海运至洛杉矶&#10;价格条款：CIF（成本+保险+运费）洛杉矶">FROM SHANGHAI TO LOS ANGELES,<br>BY SEA, CIF LOS ANGELES</span>
+                        </td>
+                    </tr>
+                     <tr>
+                        <td colspan="4">
+                            <span class="label">TERMS OF PAYMENT</span>
+                            <span class="translatable" data-cn="见票后30天付款的不可撤销跟单信用证">IRREVOCABLE DOCUMENTARY L/C AT 30 DAYS AFTER SIGHT</span>
+                        </td>
+                    </tr>
+                    <tr class="section-header">
+                        <td width="20%">Marks and Numbers</td>
+                        <td width="45%">Description of Goods</td>
+                        <td width="15%">Quantity</td>
+                        <td width="20%">Unit Price / Amount</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <span class="translatable block-edit" data-cn="POWER PLAY&#10;合同号 11JW1106&#10;洛杉矶&#10;箱号 1-220">POWER PLAY<br>11JW1106<br>LOS ANGELES<br>NO. 1-220</span>
+                        </td>
+                        <td>
+                            <span class="translatable block-edit" data-cn="染色男士衬衫&#10;80%棉 20%涤纶&#10;一件装一胶袋，12件装一出口箱&#10;总计装入一个20英尺整柜&#10;CIF洛杉矶">DYED MEN'S SHIRTS<br>COTTON 80 PCT POLYESTER 20 PCT,<br>ONE PC IN A POLYBAG AND 12 PCS IN AN EXPORT CARTON.<br>TOTAL INTO ONE 20' FULL CONTAINER<br>CIF LOS ANGELES</span>
+                        </td>
+                        <td>
+                            <span class="translatable" data-cn="10,000 件">10000 PCS</span>
+                        </td>
+                        <td>
+                            <div class="mb-2">
+                                <span class="label">Unit Price</span>
+                                <span class="translatable block-edit" data-cn="7.80美元/件 CIF洛杉矶">USD 7.80/PC<br>CIF LOS ANGELES</span>
+                            </div>
+                            <div>
+                                <span class="label">Amount</span>
+                                <span class="translatable" data-cn="78,000.00 美元">USD 78000.00</span>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                         <td colspan="4" class="text-right font-bold">
+                            TOTAL: <span class="translatable" data-cn="78,000.00 美元">USD 78000.00</span>
+                         </td>
+                    </tr>
+                     <tr>
+                         <td colspan="4">
+                            <span class="label">SAY TOTAL</span>
+                            <span class="translatable" data-cn="美金柒万捌仟元整">SAY US DOLLARS SEVENTY-EIGHT THOUSAND ONLY</span>
+                         </td>
+                    </tr>
+                </table>
+            </div>
+
+            <!-- DOCUMENT 2: BILL OF LADING -->
+            <div class="doc-container" data-category="海运提单 (Bill of Lading)">
+                <div class="doc-tag">B/L</div>
+                <div class="doc-title">OCEAN BILL OF LADING</div>
+                <table>
+                    <tr>
+                        <td width="50%">
+                            <span class="label">Shipper</span>
+                            <span class="translatable block-edit" data-cn="广东荣华贸易有限公司&#10;中国广州德政南路168号">GUANG DONG RONGHUA TRADE CO., LTD<br>168 DEZHENG ROAD SOUTH, GUANGZHOU, CHINA</span>
+                        </td>
+                        <td width="50%">
+                            <span class="label">B/L No.</span>
+                            <span class="translatable" data-cn="KTT1245678">KTT1245678</span>
+                            <br><br>
+                            <span class="font-bold">SINOTRANS GUANGDONG CO, LTD.</span>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <span class="label">Consignee</span>
+                            <span class="translatable" data-cn="凭METITA银行指示（空白抬头）">TO ORDER OF METITA BANK LTD.</span>
+                        </td>
+                        <td rowspan="2">
+                             <div class="text-xs text-gray-500 italic p-1">
+                                SHIPPED on board in apparent good order and condition...
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <span class="label">Notify Party</span>
+                            <span class="translatable block-edit" data-cn="FFK公司&#10;芬兰 AKEKSANTERINK AUTO 邮箱9号">FFK CORP. AKEKSANTERINK AUTO<br>P.O.BOX 9, FINLAND</span>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td colspan="2">
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <span class="label">Pre-carriage by</span>
+                                    <span class="translatable" data-cn="东方号">DONG FANG</span>
+                                </div>
+                                 <div>
+                                    <span class="label">Place of Receipt</span>
+                                     <span class="translatable" data-cn="中国广州">GUANGZHOU, CHINA</span>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                     <tr>
+                        <td colspan="2">
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <span class="label">Vessel / Voy No.</span>
+                                    <span class="translatable" data-cn="MAKIS 航次 V.002">MAKIS V.002</span>
+                                </div>
+                                 <div>
+                                    <span class="label">Port of Loading</span>
+                                     <span class="translatable" data-cn="中国广州">GUANGZHOU, CHINA</span>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                     <tr>
+                        <td colspan="2">
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <span class="label">Port of Discharge</span>
+                                    <span class="translatable" data-cn="芬兰赫尔辛基">HELSINKI, FINLAND</span>
+                                </div>
+                                 <div>
+                                    <span class="label">Final Destination</span>
+                                     <span>-</span>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr class="section-header">
+                        <td colspan="2">Particulars Furnished by Shipper</td>
+                    </tr>
+                    <tr>
+                        <td colspan="2">
+                            <div class="grid grid-cols-4 gap-2 text-sm mb-2">
+                                <div class="font-bold">Marks & Nos.</div>
+                                <div class="font-bold">No. of Pkgs</div>
+                                <div class="font-bold">Description</div>
+                                <div class="font-bold">Gross Weight / Msmt</div>
+                            </div>
+                            <div class="grid grid-cols-4 gap-2 text-xs">
+                                <div class="translatable block-edit" data-cn="SIHUSSSAS YDQCD123456&#10;CY/CY (场站到场站)&#10;ABC/赫尔辛基&#10;箱号 1-800">SIHUSSSAS YDQCD123456<br>CY/CY<br>ABC/HELSINKI/<br>NO. 1-800</div>
+                                <div class="translatable block-edit" data-cn="800箱&#10;装入一个集装箱">800 CTNS<br>ONE CONTAINER</div>
+                                <div class="translatable block-edit" data-cn="9,600件女士毛衣&#10;销售合同号 98GQ468001&#10;信用证号 KHL 12-22457">9,600 PCS OF WOMEN'S SWEATERS<br>S/C NO. 98GQ468001<br>L/C NO. KHL 12-22457</div>
+                                <div class="translatable block-edit" data-cn="毛重 6,500公斤&#10;体积 25立方米">6,500 KGS<br>25 CBMS</div>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td colspan="2">
+                             <span class="label">Freight & Charges</span>
+                             <span class="translatable" data-cn="运费预付，文件费、保费100美元，附加费300美元">FREIGHT PREPAID AND DOC INSURANCE PREMIUM USD 100.00 SURCHARGE USD 300.00</span>
+                        </td>
+                    </tr>
+                    <tr>
+                         <td colspan="2">
+                             <span class="label">Place and Date of Issue</span>
+                             <span class="translatable" data-cn="中国广州，202X年7月10日">GUANGZHOU, CHINA JULY 10, 202X</span>
+                             <div class="mt-2 text-right">
+                                 <span class="label">Signed for master</span>
+                                 <span class="font-bold">LI XI</span>
+                             </div>
+                        </td>
+                    </tr>
+                </table>
+            </div>
+
+            <!-- DOCUMENT 3: INSURANCE POLICY -->
+            <div class="doc-container" data-category="保险单 (Insurance Policy)">
+                <div class="doc-tag">INSURANCE</div>
+                <div class="doc-title">INSURANCE POLICY</div>
+                <table>
+                     <tr>
+                        <td width="50%">
+                            <span class="label">Invoice No.</span>
+                            <span class="translatable" data-cn="AG(29)88012">AG(29)88012</span>
+                        </td>
+                        <td width="50%">
+                            <span class="label">Policy No.</span>
+                            <span class="translatable" data-cn="NP47/12">NP47/12</span>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td colspan="2">
+                            <span class="label">Insured</span>
+                            <span class="translatable block-edit" data-cn="中国顶级玩具公司&#10;中国广州东风路724号">CHINA TOP TOY CORP.<br>724 DONGFENG RD., GUANGZHOU, CHINA</span>
+                        </td>
+                    </tr>
+                     <tr class="section-header">
+                        <td colspan="2">Details</td>
+                    </tr>
+                     <tr>
+                        <td colspan="2">
+                            <div class="grid grid-cols-4 gap-2 text-sm mb-2">
+                                <div class="font-bold">Marks & Nos</div>
+                                <div class="font-bold">Quantity</div>
+                                <div class="font-bold">Description</div>
+                                <div class="font-bold">Amount Insured</div>
+                            </div>
+                             <div class="grid grid-cols-4 gap-2 border-b pb-2 mb-2">
+                                 <div class="translatable block-edit" data-cn="WOODLAND 纽约&#10;号码 P01009">WOODLAND NEW YORK<br>No. P01009</div>
+                                 <div class="translatable" data-cn="100箱">100 CTNS</div>
+                                 <div class="translatable block-edit" data-cn="1000个填充玩具&#10;详情见订单 P01009">1000 PCS OF STUFFED TOYS<br>DETAILS AS PER ORDER NO. P01009</div>
+                                 <div class="translatable" data-cn="3850.00 美元">USD 3850.00</div>
+                             </div>
+                             <div class="mt-2">
+                                <span class="label">Total Amount Insured</span>
+                                <span class="translatable" data-cn="美金叁仟捌佰伍拾元整">USD THREE THOUSAND EIGHT HUNDRED AND FIFTY ONLY</span>
+                             </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td colspan="2">
+                             <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <span class="label">Per Conveyance</span>
+                                    <span class="translatable" data-cn="S.S. YUE TONG - 542 (岳通号)">S.S. YUE TONG - 542</span>
+                                </div>
+                                <div>
+                                     <span class="label">From / To</span>
+                                     <span class="translatable" data-cn="自中国广州港 至 美国纽约">From GUANGZHOU PORT, CHINA To NEW YORK, USA</span>
+                                </div>
+                             </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td colspan="2">
+                            <span class="label">Conditions</span>
+                            <span class="translatable block-edit" data-cn="投保中国人民保险公司1981年1月1日海洋运输货物保险条款的一切险和战争险">COVERING ALL RISKS AND WAR RISKS AS PER OCEAN MARINE CARGO CLAUSES OF THE PICC DATED 01/01/1981.</span>
+                        </td>
+                    </tr>
+                     <tr>
+                        <td colspan="2">
+                            <span class="label">Claim Payable At</span>
+                            <span class="translatable" data-cn="美国纽约">NEW YORK, U.S</span>
+                            <br>
+                            <span class="label">Date</span>
+                            <span class="translatable" data-cn="2024年12月12日">Dec.12, 2024</span>
+                        </td>
+                    </tr>
+                </table>
+            </div>
+
+            <!-- DOCUMENT 4: BILL OF EXCHANGE (DRAFT 1) -->
+            <div class="doc-container" data-category="汇票 (Bill of Exchange)">
+                <div class="doc-tag">DRAFT</div>
+                <div class="doc-title">BILL OF EXCHANGE (练习1)</div>
+                <div style="border: 2px solid #000; padding: 20px; position: relative;">
+                    <div class="flex justify-between mb-4">
+                        <div>
+                             <span class="label">No.</span>
+                             <span class="translatable text-xl font-mono" data-cn="335673">335673</span>
+                        </div>
+                        <div>
+                             <span class="label">Place and Date</span>
+                             <span class="translatable" data-cn="中国宁波，2020年4月20日">Ningbo, China APRIL 20TH, 2020</span>
+                        </div>
+                        <div>
+                             <span class="label">For</span>
+                             <span class="translatable text-xl font-bold" data-cn="9300.00 美元">USD 9300.00</span>
+                        </div>
+                    </div>
+
+                    <div class="mb-4 leading-loose">
+                        At <span class="translatable border-b border-blue-300 px-2" data-cn="30天">30 DAYS</span> 
+                        AFTER <span class="translatable border-b border-blue-300 px-2" data-cn="见票">sight</span> 
+                        of this FIRST of Exchange (Second of Exchange being unpaid)<br>
+                        Pay to the order of <span class="translatable border-b border-blue-300 px-2" data-cn="中国银行宁波分行">BANK OF CHINA, NINGBO</span><br>
+                        the sum of <span class="translatable border-b border-blue-300 px-2" data-cn="美金玖佰元整">US DOLLARS NINE HUNDRED ONLY</span>
+                    </div>
+
+                    <div class="flex justify-between mt-8 align-bottom">
+                        <div class="w-1/2">
+                            <span class="label">To:</span>
+                            <span class="translatable font-bold" data-cn="中国银行新加坡分行">BANK OF CHINA, SINGAPORE</span>
+                            <div class="mt-2 text-sm text-gray-500">
+                                Drawn under L/C No. <span class="translatable" data-cn="136A-523">136A-523</span><br>
+                                Dated <span class="translatable" data-cn="2020年4月5日">APRIL 5TH, 2020</span>
+                            </div>
+                        </div>
+                        <div class="w-1/2 text-right">
+                            <span class="label">Drawer</span>
+                            <span class="translatable font-bold" data-cn="浙江纺织进出口公司">ZHEJIANG TEXTILE IMPORT AND EXPORT CORPORATION</span>
+                            <div class="h-10 border-b border-black mt-2"></div>
+                            <span class="text-xs">Authorized Signature</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- DOCUMENT 5: BILL OF EXCHANGE (DRAFT 2) -->
+            <div class="doc-container" data-category="汇票 (Bill of Exchange)">
+                <div class="doc-tag">DRAFT</div>
+                <div class="doc-title">BILL OF EXCHANGE (练习2)</div>
+                <div style="border: 2px solid #000; padding: 20px; position: relative;">
+                    <div class="flex justify-between mb-4">
+                        <div>
+                             <span class="label">No.</span>
+                             <span class="translatable text-xl font-mono" data-cn="HZ66517">HZ66517</span>
+                        </div>
+                        <div>
+                             <span class="label">Date</span>
+                             <span class="translatable" data-cn="2024年10月16日">OCT 16, 2024</span>
+                        </div>
+                        <div>
+                             <span class="label">For</span>
+                             <span class="translatable text-xl font-bold" data-cn="66,500.00 美元">USD 66500.00</span>
+                        </div>
+                    </div>
+
+                    <div class="mb-4 leading-loose">
+                        At <span class="translatable border-b border-blue-300 px-2" data-cn="即期 (Sight) 或指定天数">****</span> 
+                        Sight of THIS SECOND BILL of EXCHANGE (First of the same/ tenor and date being unpaid)<br>
+                        Pay to <span class="translatable border-b border-blue-300 px-2" data-cn="中国银行浙江分行 或 凭指示">BANK OF CHINA, ZHEJIANG BRANCH or order</span><br>
+                        the sum of <span class="translatable border-b border-blue-300 px-2" data-cn="美金陆万陆仟伍佰元整">SAY US DOLLARS SIXTY-SIX THOUSAND FIVE HUNDRED ONLY</span>
+                    </div>
+
+                    <div class="flex justify-between mt-8 align-bottom">
+                        <div class="w-1/2">
+                            <span class="label">To:</span>
+                            <span class="translatable font-bold" data-cn="东京银行纽约分行">THE BANK OF TOKYO LTD, NEW YORK AGENCY, N.Y</span>
+                            <div class="mt-2 text-sm text-gray-500">
+                                Drawn under THE BANK OF TOKYO, LTD NAGOYA OFFICE<br>
+                                L/C NO. <span class="translatable" data-cn="B123A-456">B123A-456</span>
+                                Dated <span class="translatable" data-cn="2024年10月6日">OCT 6, 2024</span>
+                            </div>
+                        </div>
+                        <div class="w-1/2 text-right">
+                            <span class="label">Drawer</span>
+                            <span class="translatable font-bold" data-cn="浙江金杰克斯贸易有限公司">ZHEJIANG KINGJEX TRADING CO., LTD.</span>
+                            <div class="h-10 border-b border-black mt-2"></div>
+                            <span class="text-xs">Authorized Signature</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Right: Practice Sidebar -->
+        <div class="sidebar-area hidden-panel" id="sidebar">
+            <div class="sidebar-header border-b p-4">
+                <div class="font-bold text-gray-800">📚 答案词库</div>
+                <div id="categoryLabel" class="category-badge hidden"></div>
+            </div>
+            <div class="sidebar-content p-4" id="sidebarContent">
+                <!-- Content injected via JS -->
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const elements = document.querySelectorAll('.translatable');
+        const practiceBtn = document.getElementById('practiceBtn');
+        const checkBtn = document.getElementById('checkBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const transBtn = document.getElementById('transBtn');
+        const sidebar = document.getElementById('sidebar');
+        const sidebarContent = document.getElementById('sidebarContent');
+        const categoryLabel = document.getElementById('categoryLabel');
+        
+        let activeSlot = null;
+        let wordBank = []; // Array of {id, text, used, category}
+
+        // Initialization
+        elements.forEach((el, index) => {
+            el.id = `slot-${index}`;
+
+            if (!el.getAttribute('data-answer')) {
+                el.setAttribute('data-original-html', el.innerHTML);
+                const text = el.innerText.trim();
+                el.setAttribute('data-answer', text);
+            }
+        });
+
+        function toggleTranslationMode() {
+            document.body.classList.toggle('translations-active');
+            transBtn.classList.toggle('active');
+            transBtn.querySelector('span').innerText = document.body.classList.contains('translations-active') 
+                ? "👀 中文翻译已开启" : "👁️ 中文翻译";
+        }
+
+        // Shuffle Array
+        function shuffle(array) {
+            let currentIndex = array.length, randomIndex;
+            while (currentIndex != 0) {
+                randomIndex = Math.floor(Math.random() * currentIndex);
+                currentIndex--;
+                [array[currentIndex], array[randomIndex]] = [array[randomIndex], array[currentIndex]];
+            }
+            return array;
+        }
+
+        function togglePracticeMode() {
+            // Toggle UI
+            practiceBtn.classList.add('hidden');
+            checkBtn.classList.remove('hidden');
+            resetBtn.classList.remove('hidden');
+            sidebar.classList.remove('hidden-panel');
+
+            // Reset Active State
+            activeSlot = null;
+            wordBank = [];
+
+            // 1. Collect ALL answers from document to build the Word Bank WITH Categories
+            elements.forEach((el, i) => {
+                const answer = el.getAttribute('data-answer');
+                
+                // Find parent doc container to get category
+                const container = el.closest('.doc-container');
+                const category = container ? container.getAttribute('data-category') : '其他';
+
+                // Create a unique bank item for each slot, ensuring 1:1 mapping
+                wordBank.push({
+                    id: `opt-${i}`,
+                    text: answer,
+                    used: false,
+                    category: category
+                });
+
+                // Transform Document Slot visuals
+                el.innerHTML = "[ 点击选择 ]";
+                el.classList.add('cloze-slot');
+                el.classList.remove('translatable', 'block-edit', 'correct', 'incorrect');
+                el.removeAttribute('data-linked-option-id'); // Clear previous links
+                
+                // Add Click Event for Slot
+                el.onclick = function(e) {
+                    e.stopPropagation();
+                    activateSlot(this);
+                };
+            });
+
+            // 2. Shuffle Word Bank
+            shuffle(wordBank);
+
+            // 3. Show Initial Instruction
+            categoryLabel.classList.add('hidden');
+            sidebarContent.innerHTML = `
+                <div class="empty-state">
+                    <div class="text-4xl mb-4">👈</div>
+                    <p>请先在左侧点击一个<br><strong class="text-blue-500">[ 空格 ]</strong></p>
+                    <p class="text-sm mt-2 text-gray-500">词库会自动切换到<br>该单据对应的专属选项</p>
+                </div>
+            `;
+        }
+
+        function renderSidebar(filterCategory) {
+            // Update Category Label
+            if (filterCategory) {
+                categoryLabel.innerText = filterCategory;
+                categoryLabel.classList.remove('hidden');
+            } else {
+                categoryLabel.classList.add('hidden');
+            }
+
+            let html = '';
+            // Filter word bank by category
+            const filteredBank = wordBank.filter(item => item.category === filterCategory);
+
+            if (filteredBank.length === 0) {
+                 html = '<div class="text-center text-gray-500">该分类下没有选项</div>';
+            } else {
+                filteredBank.forEach((item) => {
+                    html += `
+                        <div id="${item.id}" class="option-card ${item.used ? 'used' : ''}" onclick="selectWordBankItem('${item.id}', '${filterCategory}')">
+                            ${item.text.replace(/\n/g, '<br>')}
+                        </div>
+                    `;
+                });
+            }
+            sidebarContent.innerHTML = html;
+        }
+
+        function activateSlot(element) {
+            if (activeSlot) activeSlot.classList.remove('active');
+            activeSlot = element;
+            activeSlot.classList.add('active');
+            
+            // Identify Category
+            const container = element.closest('.doc-container');
+            const category = container ? container.getAttribute('data-category') : '其他';
+
+            // Render Sidebar specific to this category
+            renderSidebar(category);
+        }
+
+        window.selectWordBankItem = function(optionId, currentCategory) {
+            if (!activeSlot) return;
+
+            const optionItem = wordBank.find(i => i.id === optionId);
+            if (!optionItem || optionItem.used) return;
+
+            // 1. Check if slot already has a value. If so, free up the old option.
+            const previousOptionId = activeSlot.getAttribute('data-linked-option-id');
+            if (previousOptionId) {
+                const prevItem = wordBank.find(i => i.id === previousOptionId);
+                if (prevItem) prevItem.used = false;
+            }
+
+            // 2. Fill Slot
+            activeSlot.innerHTML = optionItem.text.replace(/\n/g, '<br>');
+            activeSlot.classList.add('filled');
+            activeSlot.setAttribute('data-selected-value', optionItem.text); // For validation
+            activeSlot.setAttribute('data-linked-option-id', optionId);      // For logic
+
+            // 3. Mark Option as Used
+            optionItem.used = true;
+
+            // 4. Re-render Sidebar to show grey state (maintaining category filter)
+            renderSidebar(currentCategory);
+        };
+
+        function resetPractice() {
+            practiceBtn.classList.remove('hidden');
+            checkBtn.classList.add('hidden');
+            resetBtn.classList.add('hidden');
+            sidebar.classList.add('hidden-panel');
+
+            elements.forEach(el => {
+                el.innerHTML = el.getAttribute('data-original-html');
+                el.classList.remove('cloze-slot', 'active', 'filled', 'correct', 'incorrect');
+                el.classList.add('translatable');
+                el.onclick = null;
+                el.removeAttribute('data-selected-value');
+                el.removeAttribute('data-linked-option-id');
+            });
+        }
+
+        function checkAnswers() {
+            let correctCount = 0;
+            let totalCount = 0;
+
+            elements.forEach(el => {
+                if (el.classList.contains('cloze-slot')) {
+                    totalCount++;
+                    const userAnswer = el.getAttribute('data-selected-value') || "";
+                    const correctAnswer = el.getAttribute('data-answer');
+                    
+                    // Normalize text for comparison (remove extra spaces/newlines)
+                    const normUser = userAnswer.replace(/\s+/g, ' ').trim();
+                    const normCorrect = correctAnswer.replace(/\s+/g, ' ').trim();
+
+                    if (normUser === normCorrect) {
+                        el.classList.add('correct');
+                        el.classList.remove('incorrect');
+                        correctCount++;
+                    } else {
+                        el.classList.add('incorrect');
+                        el.classList.remove('correct');
+                    }
+                }
+            });
+            
+            alert(`检查完毕！\n得分: ${correctCount} / ${totalCount}\n绿色为正确，红色为错误。`);
+        }
+    </script>
+
+</body>
+</html>
